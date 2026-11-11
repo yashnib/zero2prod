@@ -1,6 +1,6 @@
 //! tests/health_check.rs
 
-use sqlx::{Connection, Database, Executor, PgConnection, PgPool};
+use sqlx::{ConnectOptions, Connection, Database, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::startup::run;
@@ -144,8 +144,8 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         ..config.clone()
     };
 
-    let mut connection = PgConnection::connect(
-        &maintenance_settings.connection_string().expose_secret()
+    let mut connection = PgConnection::connect_with(
+        &maintenance_settings.connect(),
     )
         .await
         .expect("Failed to connect to Postgres.");
@@ -155,7 +155,7 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to create database.");
 
-    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
+    let connection_pool = PgPool::connect_with(&config.connect_options())
         .await
         .expect("Failed to connect to Postgres.");
 

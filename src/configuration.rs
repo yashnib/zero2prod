@@ -1,7 +1,11 @@
 //! src/configuration.rs
 
 use config;
+use serde_aux::field_attributes::deserialize_number_from_string;
 use secrecy::{ExposeSecret, Secret};
+use sqlx::PgConnection;
+use sqlx::postgres::{PgConnectOptions, PgSslMode};
+
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
@@ -10,6 +14,7 @@ pub struct Settings {
 
 #[derive(serde::Deserialize)]
 pub struct ApplicationSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
 }
@@ -19,16 +24,27 @@ pub struct DatabaseSettings {
     pub username: String,
     pub password: Secret<String>,
     pub database_name: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
-    pub host: String
+    pub host: String,
+    pub require_ssl: bool
 }
 
 impl DatabaseSettings {
-    pub fn connection_string(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username, self.password.expose_secret(), self.host, self.port, self.database_name
-        ))
+    pub fn connect_options(&self) -> PgConnectOptions {
+        let ssl_mode = if self.require_ssl {
+            PgSslMode::Require
+        } else {
+            PgSslMode::Prefer
+        };
+        
+        PgConnectOptions::new()
+            .host(&self.host)
+            .username(&self.username)
+            .password(&self.password.expose_secret())
+            .port(self.port)
+            .ssl_mode(ssl_mode)
+            .database(&self.database_name)
     }
 }
 
@@ -50,8 +66,12 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
             config::File::from(configuration_directory.join("base.yaml"))
         )
         .add_source(
-            config::File::from(configuration_directory.join(environment_filename)
-            )
+            config::File::from(configuration_directory.join(environment_filename))
+        )
+        .add_source(
+            config::Environment::with_prefix("APP")
+            .prefix_separator("_")
+            .separator("__")
         )
         .build()?;
 

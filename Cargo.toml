@@ -34,3 +34,4 @@ tracing-bunyan-formatter = "0.3.11"
 tracing-log = "0.1.4"
 tracing-actix-web = "0.7"
 serde-aux = "4.7.0"
+rand = { version = "0.8", features = ["std_rng"] }
